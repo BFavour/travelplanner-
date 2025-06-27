@@ -1,0 +1,179 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard | CAMEROON TOUR PLANNER</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCeXX4jRDTdQIiRUuposhRDaFF553A0F8A"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sriracha&display=swap" />
+</head>
+
+<body>
+  <!-- HEADER -->
+  <header class="header">
+    <a href="index.html" class="logo">
+      <img src="./images/logo.png" alt="logo" />
+    </a>
+    <nav class="nav-items">
+      <a href="index.html">Home</a>
+      <!--<a href="wishlist.html">Saved Hotels</a>-->
+      <a href="reviews.html">Reviews</a>
+      <a href="php/logout.php">Logout</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- FILTER + OTHER BOOKING FORMS -->
+    <section class="form-container" style="display: flex; flex-wrap: wrap; gap: 30px; justify-content: space-between;">
+      <!-- Hotel Filter Form -->
+      <form id="hotelFilterForm" class="auth-form" style="flex: 1 1 300px;">
+        <h2>Find Hotels Based on Your Budget (XAF)</h2>
+        <input type="number" id="budget" placeholder="Your Budget in XAF" required />
+        <label>Start Date</label>
+        <input type="date" id="visit_date" required />
+        <label>End Date</label>
+        <input type="date" id="visit_end_date" required />
+        <button type="submit">Find Hotels</button>
+      </form>
+
+      <!-- In-town circulation -->
+      <form action="php/send_circulation.php" method="post" class="auth-form" style="flex: 1 1 300px;">
+        <h2>Book In-Town Circulation</h2>
+        <input type="text" name="current_location" placeholder="Current Location" required />
+        <input type="text" name="destination" placeholder="Destination" required />
+        <input type="time" name="departure_time" required />
+        <input type="email" name="email" placeholder="Your Email" required />
+        <button type="submit">Book Now</button>
+      </form>
+
+      <!-- Inter-region travel -->
+      <form action="php/send_interregion.php" method="post" class="auth-form" style="flex: 1 1 300px;">
+        <h2>Travel Across Cameroon</h2>
+        <input type="text" name="current_region" placeholder="Current Region" required />
+        <input type="text" name="destination_region" placeholder="Destination Region" required />
+        <input type="email" name="email" placeholder="Your Email" required />
+        <button type="submit">Book Region Travel</button>
+      </form>
+    </section>
+
+    <!-- HOTEL MAP AND DISPLAY -->
+    <section style="padding: 40px 20px;">
+      <div id="hotels" class="hotel-list"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="copy">&copy; Group 9 level 2 ICTU</div>
+    <div class="bottom-links">
+      <div class="links">
+        <span>More Info</span>
+        <a href="#">Home</a>
+        <a href="#">About</a>
+        <a href="#">Contact</a>
+      </div>
+      <div class="links">
+        <span>Social Links</span>
+        <a href="https://www.facebook.com/ictu_restuarant"><i class="fab fa-facebook"></i></a>
+        <a href="https://twitter.com/jrpounz75131"><i class="fab fa-twitter"></i></a>
+        <a href="https://www.instagram.com/ictu_restaurant/"><i class="fab fa-instagram"></i></a>
+        <a href="https://wa.me/652397580"><i class="fab fa-whatsapp"></i></a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      document.getElementById("hotelFilterForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        sessionStorage.setItem("budget", document.getElementById("budget").value);
+        sessionStorage.setItem("visit_date", document.getElementById("visit_date").value);
+        sessionStorage.setItem("visit_end_date", document.getElementById("visit_end_date").value);
+        fetchHotels();
+      });
+    });
+
+    function fetchHotels() {
+      const budget = sessionStorage.getItem("budget");
+      const date = sessionStorage.getItem("visit_date");
+
+      if (!budget || !date) return;
+
+      fetch("php/filter_hotels.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `budget=${budget}&visit_date=${date}`
+      })
+      .then(res => res.json())
+      .then(data => {
+        const hotelsDiv = document.getElementById("hotels");
+        hotelsDiv.innerHTML = "";
+
+        if (data.length === 0) {
+          hotelsDiv.innerHTML = "<p>No hotels found under that budget.</p>";
+          return;
+        }
+
+        data.forEach((hotel, index) => {
+          const gallery = hotel.gallery ? hotel.gallery.split(',') : [];
+          const stars = "★".repeat(Math.floor(hotel.rating)) + "☆".repeat(5 - Math.floor(hotel.rating));
+          const mapId = "map-" + index;
+
+          hotelsDiv.innerHTML += `
+            <div class="hotel-card">
+              <h3>${hotel.name}</h3>
+              <img src="${hotel.main_image}" class="main-image" alt="Main Image" />
+              <div class="stars">${stars}</div>
+              <div class="gallery">
+                ${gallery.map(img => `<img src="${img.trim()}" alt="Hotel Image" />`).join('')}
+              </div>
+              <p>Budget: ${hotel.price} XAF/night</p>
+              <p>Location: ${hotel.location}</p>
+              <div id="${mapId}" class="hotel-map" style="width: 100%; height: 300px; margin-top: 15px;"></div>
+
+              <button onclick="toggleBookingForm('${hotel.id}')">Book Now</button>
+              <div id="booking-form-${hotel.id}" style="display:none; margin-top: 15px;">
+                <form action="php/send_booking.php" method="post" class="booking-form">
+                  <input type="hidden" name="hotel" value="${hotel.name}" />
+                  <input type="text" name="name" placeholder="Your Name" required />
+                  <input type="email" name="email" placeholder="Your Email" required />
+                  <button type="submit">Send Booking Request</button>
+                </form>
+              </div>
+
+              <form action="php/reviews.php" method="post" class="review-form">
+                <input type="hidden" name="hotel" value="${hotel.name}" />
+                <textarea name="review" placeholder="Leave a review..." required></textarea>
+                <button type="submit">Submit Review</button>
+              </form>
+            </div>
+          `;
+
+          setTimeout(() => {
+            const map = new google.maps.Map(document.getElementById(mapId), {
+              zoom: 15,
+              center: { lat: parseFloat(hotel.latitude), lng: parseFloat(hotel.longitude) },
+            });
+            new google.maps.Marker({
+              position: { lat: parseFloat(hotel.latitude), lng: parseFloat(hotel.longitude) },
+              map: map,
+              title: hotel.name,
+            });
+          }, 300);
+        });
+
+        document.getElementById("hotels").scrollIntoView({ behavior: "smooth" });
+      });
+    }
+
+    function toggleBookingForm(id) {
+      const form = document.getElementById("booking-form-" + id);
+      form.style.display = form.style.display === "none" ? "block" : "none";
+    }
+  </script>
+</body>
+</html>
